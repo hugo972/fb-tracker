@@ -1,3 +1,4 @@
+const http = require('http');
 const phantom = require('phantom');
 const LocalStorage = require('node-localstorage').LocalStorage;
 const _ = require('underscore-node');
@@ -132,4 +133,5 @@ async function Run() {
   }
 }
 
+http.createServer().listen();
 Run();

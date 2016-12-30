@@ -38,29 +38,37 @@ function testPost(post, filters) {
   )
 }
 
+function log(message) {
+  console.log(`${new Date()} :: ${message}`);
+}
+
 async function Process() {
   const lastPostId = localStorage.getItem('lastPostId');
   const instance = await phantom.create();
   const page = await instance.createPage();
 
+  log("reading facebook posts");
   await page.open('https://www.facebook.com/');
 
-  await page.evaluate(() => {
-    (document.getElementById('email') as any).value = process.env.fb_user;
-    (document.getElementById('pass') as any).value = process.env.fb_pass;
-    (document.getElementById('loginbutton') as any).firstChild.click();
-  });
-  await waitFor(page, () => document.title !== 'Facebook - Log In or Sign Up');
+  await page.evaluate(
+    function (user, password) {
+      (document.getElementById('email') as any).value = user;
+      (document.getElementById('pass') as any).value = password;
+      (document.getElementById('loginbutton') as any).firstChild.click();
+    },
+    process.env.fb_user,
+    process.env.fb_pass);
+  await waitFor(page, function () { return document.title !== 'Facebook - Log In or Sign Up'; });
 
   await page.open('https://www.facebook.com/groups/503525946346109/');
-  await waitFor(page, () => document.getElementById('group_mall_503525946346109') !== null);
+  await waitFor(page, function () { return document.getElementById('group_mall_503525946346109') !== null; });
 
-  await page.evaluate(() => {
+  await page.evaluate(function () {
     document.body.scrollTop = 50000;
   });
   await delay(1000);
 
-  const posts = await page.evaluate(() => {
+  const posts = await page.evaluate(function () {
     var posts = document.getElementById('group_mall_503525946346109').getElementsByClassName('userContent');
     var postsData = [];
     for (var index = 0; index < posts.length; index++) {
@@ -71,7 +79,7 @@ async function Process() {
         postsData.push({
           id: postId,
           text: post.innerText + (showMore ? showMore.innerText : ''),
-          link: `https://www.facebook.com/groups/503525946346109/permalink/${postId}/`
+          link: 'https://www.facebook.com/groups/503525946346109/permalink/' + postId
         });
       } catch (error) {
       }
@@ -79,16 +87,23 @@ async function Process() {
     return postsData;
   });
 
+  log(`found ${posts.length} posts`);
   let postIndex = 0;
   while (postIndex < posts.length && posts[postIndex].id !== lastPostId) postIndex++;
 
-  if (postIndex > 0) {
+  if (postIndex === 0) {
+    log("no new posts");
+  } else {
     posts.splice(postIndex - 1);
+    log(`processing ${posts.length} new posts`);
 
     const matches = _.filter(
       posts,
       post => testPost(post, filters));
-    if (matches.length > 0) {
+    if (matches.length === 0) {
+      log(`no matching posts found`);
+    } else {
+      log(`found ${matches.length} new matching posts`);
       var transporter = nodemailer.createTransport(`smtps://${process.env.gmail_user}%40gmail.com:${process.env.gmail_pass}@smtp.gmail.com`);
       var mailOptions = {
         from: `${process.env.gmail_user}@gmail.com`,

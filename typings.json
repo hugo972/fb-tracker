@@ -1,0 +1,6 @@
+{
+  "globalDependencies": {
+    "node": "registry:dt/node#6.0.0+20161014191813",
+    "phantom": "registry:dt/phantom#0.7.0+20160316155526"
+  }
+}

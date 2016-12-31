@@ -1,4 +1,3 @@
-const http = require('http');
 const phantom = require('phantom');
 const LocalStorage = require('node-localstorage').LocalStorage;
 const _ = require('underscore-node');
@@ -40,12 +39,13 @@ function testPost(post, filters) {
 }
 
 function log(message) {
-  console.log(`${new Date()} :: ${message}`);
+  console.log(message);
 }
 
 async function Process() {
   const lastPostId = localStorage.getItem('lastPostId');
   const instance = await phantom.create();
+  instance.setProxy('81.218.131.96', 8088);
   const page = await instance.createPage();
 
   log("reading facebook posts");
@@ -133,5 +133,15 @@ async function Run() {
   }
 }
 
-http.createServer().listen();
+/*async function test() {
+  const instance = await phantom.create();
+  instance.setProxy('213.57.89.97', 18000, 'manual', '', '');
+
+  const page = await instance.createPage();
+
+  await page.open('http://www.whatsmyip.org/');
+  log(await page.evaluate(function () { return document.getElementById('ip').innerText; }));
+  await instance.exit();
+}*/
+
 Run();

@@ -10,8 +10,9 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function waitFor(page, condition, timeout = 10000) {
-  while (timeout > 0 && !(await page.evaluate(condition))) {
+async function waitFor(page, condition, timeout = 10000, ...args: any[]) {
+  var evalArguments = [condition].concat(args);
+  while (timeout > 0 && !(await page.evaluate.apply(page, evalArguments))) {
     timeout -= 100;
     await delay(100);
   }
@@ -39,14 +40,14 @@ function testPost(post, filters) {
 }
 
 function log(message) {
-  console.log(message);
+  console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
 async function Process() {
   const lastPostId = localStorage.getItem('lastPostId');
   const instance = await phantom.create();
-  instance.setProxy('81.218.131.96', 8088);
   const page = await instance.createPage();
+  const groupId = process.env.fb_group_id;
 
   log("reading facebook posts");
   await page.open('https://www.facebook.com/');
@@ -61,32 +62,38 @@ async function Process() {
     process.env.fb_pass);
   await waitFor(page, function () { return document.title !== 'Facebook - Log In or Sign Up'; });
 
-  await page.open('https://www.facebook.com/groups/503525946346109/');
-  await waitFor(page, function () { return document.getElementById('group_mall_503525946346109') !== null; });
+  await page.open(`https://www.facebook.com/groups/${groupId}/`);
+  await waitFor(
+    page, 
+    function (groupId) { return document.getElementById('group_mall_' + groupId) !== null; },
+    10000,
+    groupId);
 
   await page.evaluate(function () {
     document.body.scrollTop = 50000;
   });
   await delay(1000);
 
-  const posts = await page.evaluate(function () {
-    var posts = document.getElementById('group_mall_503525946346109').getElementsByClassName('userContent');
-    var postsData = [];
-    for (var index = 0; index < posts.length; index++) {
-      var post: any = posts[index];
-      var showMore = post.getElementsByClassName('text_exposed_show')[0];
-      var postId = post.parentElement.parentElement.parentElement.parentElement.parentElement.id;
-      try {
-        postsData.push({
-          id: postId,
-          text: post.innerText + (showMore ? showMore.innerText : ''),
-          link: 'https://www.facebook.com/groups/503525946346109/permalink/' + postId
-        });
-      } catch (error) {
+  const posts = await page.evaluate(
+    function (groupId) {
+      var posts = document.getElementById('group_mall_' + groupId).getElementsByClassName('userContent');
+      var postsData = [];
+      for (var index = 0; index < posts.length; index++) {
+        var post: any = posts[index];
+        var showMore = post.getElementsByClassName('text_exposed_show')[0];
+        var postId = post.parentElement.parentElement.parentElement.parentElement.parentElement.id;
+        try {
+          postsData.push({
+            id: postId,
+            text: post.innerText + (showMore ? showMore.innerText : ''),
+            link: 'https://www.facebook.com/groups/' + groupId + '/permalink/' + postId
+          });
+        } catch (error) {
+        }
       }
-    }
-    return postsData;
-  });
+      return postsData;
+    },
+    groupId);
 
   log(`found ${posts.length} posts`);
   let postIndex = 0;
@@ -108,7 +115,7 @@ async function Process() {
       var transporter = nodemailer.createTransport(`smtps://${process.env.gmail_user}%40gmail.com:${process.env.gmail_pass}@smtp.gmail.com`);
       var mailOptions = {
         from: `${process.env.gmail_user}@gmail.com`,
-        to: 'msivan@microsoft.com',
+        to: process.env.gmail_to_address,
         subject: 'New apartment matches',
         html: _.map(
           matches,
@@ -133,15 +140,19 @@ async function Run() {
   }
 }
 
-/*async function test() {
-  const instance = await phantom.create();
-  instance.setProxy('213.57.89.97', 18000, 'manual', '', '');
+function assert_env(envProperty) {
+  if (!process.env[envProperty]) {
+    throw `missing env variable '${envProperty}'.`;
+  }
+}
 
-  const page = await instance.createPage();
+assert_env('fb_group_id');
+assert_env('fb_user');
+assert_env('fb_pass');
+assert_env('gmail_user');
+assert_env('gmail_pass');
+assert_env('gmail_to_address');
 
-  await page.open('http://www.whatsmyip.org/');
-  log(await page.evaluate(function () { return document.getElementById('ip').innerText; }));
-  await instance.exit();
-}*/
-
-Run();
+Run().then(
+  () => log('worker done'), 
+  reason => log(`worker failed:\n${reason}`));

@@ -2,6 +2,7 @@ const phantom = require('phantom');
 const LocalStorage = require('node-localstorage').LocalStorage;
 const _ = require('underscore-node');
 const nodemailer = require('nodemailer');
+const format = require('date-format');
 
 localStorage = new LocalStorage('./data');
 const filters = JSON.parse(localStorage.getItem('filters') || "[]");
@@ -40,7 +41,7 @@ function testPost(post, filters) {
 }
 
 function log(message) {
-  console.log(`[${new Date().toISOString()}] ${message}`);
+  console.log(`[${format.asString('dd/MM/yyyy hh:mm:ss.SSS', new Date())}] ${message}`);
 }
 
 async function Process() {
@@ -79,10 +80,10 @@ async function Process() {
       var posts = document.getElementById('group_mall_' + groupId).getElementsByClassName('userContent');
       var postsData = [];
       for (var index = 0; index < posts.length; index++) {
-        var post: any = posts[index];
-        var showMore = post.getElementsByClassName('text_exposed_show')[0];
-        var postId = post.parentElement.parentElement.parentElement.parentElement.parentElement.id;
         try {
+          var post: any = posts[index];
+          var showMore = post.getElementsByClassName('text_exposed_show')[0];
+          var postId = /mall_post_(\d+):\d+:\d+/.exec(post.parentElement.parentElement.parentElement.parentElement.parentElement.id)[1];
           postsData.push({
             id: postId,
             text: post.innerText + (showMore ? showMore.innerText : ''),
@@ -134,9 +135,26 @@ async function Process() {
 }
 
 async function Run() {
+  let retry = 0;
   while (true) {
-    await Process();
-    await delay(1000 * 60 * Math.round(Math.random() * 20 + 40));
+    try
+    {
+      log('Starting process')
+      await Process();
+      const waitInterval = Math.round(Math.random() * 20 + 40);
+      log(`Finished, waiting ${waitInterval}min for next process`);
+      await delay(1000 * 60 * waitInterval);
+	} catch (error) {
+	  retry++;
+      if (retry <= 3) {
+        log(`Failed: ${error}, retrying ${retry}...`);
+      } else {
+        retry = 0;
+        const waitInterval = Math.round(Math.random() * 20 + 40);
+        log(`Failed: ${error}, waiting ${waitInterval}min for next process`);
+        await delay(1000 * 60 * waitInterval);
+      }
+    }
   }
 }
 

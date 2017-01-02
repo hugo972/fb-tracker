@@ -45,7 +45,7 @@ function log(message) {
 }
 
 async function Process() {
-  const lastPostId = localStorage.getItem('lastPostId');
+  const postsIndex = JSON.parse(localStorage.getItem('posts') || '{}');
   const instance = await phantom.create();
   const page = await instance.createPage();
   const groupId = process.env.fb_group_id;
@@ -65,7 +65,7 @@ async function Process() {
 
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
   await waitFor(
-    page, 
+    page,
     function (groupId) { return document.getElementById('group_mall_' + groupId) !== null; },
     10000,
     groupId);
@@ -97,17 +97,17 @@ async function Process() {
     groupId);
 
   log(`found ${posts.length} posts`);
-  let postIndex = 0;
-  while (postIndex < posts.length && posts[postIndex].id !== lastPostId) postIndex++;
+  const newPosts = _.filter(
+    posts,
+    post => !postsIndex[post.id])
 
-  if (postIndex === 0) {
+  if (newPosts.length === 0) {
     log("no new posts");
   } else {
-    posts.splice(postIndex - 1);
-    log(`processing ${posts.length} new posts`);
+    log(`processing ${newPosts.length} new posts`);
 
     const matches = _.filter(
-      posts,
+      newPosts,
       post => testPost(post, filters));
     if (matches.length === 0) {
       log(`no matching posts found`);
@@ -120,7 +120,8 @@ async function Process() {
         subject: 'New apartment matches',
         html: _.map(
           matches,
-          match => `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div><div style="font-size: 12px;">${match.link}</div></div>`).join("")
+          match => `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div>` +
+            `<div style="font-size: 12px;">${match.link}</div></div>`).join("")
       };
       transporter.sendMail(mailOptions);
 
@@ -130,22 +131,24 @@ async function Process() {
     }
   }
 
-  localStorage.setItem('lastPostId', posts[0].id);
+  _.each(
+    newPosts,
+    post => postsIndex[post.id] = true);
+  localStorage.setItem('posts', JSON.stringify(postsIndex, null, "  "));
   await instance.exit();
 }
 
 async function Run() {
   let retry = 0;
   while (true) {
-    try
-    {
+    try {
       log('Starting process')
       await Process();
       const waitInterval = Math.round(Math.random() * 20 + 40);
       log(`Finished, waiting ${waitInterval}min for next process`);
       await delay(1000 * 60 * waitInterval);
-	} catch (error) {
-	  retry++;
+    } catch (error) {
+      retry++;
       if (retry <= 3) {
         log(`Failed: ${error}, retrying ${retry}...`);
       } else {
@@ -172,5 +175,5 @@ assert_env('gmail_pass');
 assert_env('gmail_to_address');
 
 Run().then(
-  () => log('worker done'), 
+  () => log('worker done'),
   reason => log(`worker failed:\n${reason}`));

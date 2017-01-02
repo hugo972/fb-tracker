@@ -17,7 +17,6 @@
     "nodemailer": "^2.7.0",
     "phantom": "^2.1.21",
     "typescript": "^2.1.4",
-    "underscore": "^1.8.3",
     "underscore-node": "^0.1.2"
   }
 }

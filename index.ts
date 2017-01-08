@@ -100,13 +100,13 @@ async function processGroup(groupId: string) {
   const newPosts = _.filter(
     posts,
     post => !postsIndex[post.id])
-
+  let matches = [];
   if (newPosts.length === 0) {
     log("no new posts");
   } else {
     log(`processing ${newPosts.length} new posts`);
 
-    const matches = _.filter(
+    matches = _.filter(
       newPosts,
       post => testPost(post, filters));
     if (matches.length === 0) {
@@ -133,7 +133,10 @@ async function processGroup(groupId: string) {
 
   _.each(
     newPosts,
-    post => postsIndex[post.id] = true);
+    post => postsIndex[post.id] = { match: false, time: new Date() });
+  _.each(
+    matches,
+    match => postsIndex[match.id].match = true);
   localStorage.setItem('posts', JSON.stringify(postsIndex, null, "  "));
   await instance.exit();
 }

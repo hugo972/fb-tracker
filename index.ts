@@ -6,6 +6,7 @@ const format = require('date-format');
 
 localStorage = new LocalStorage('./data');
 const filters = JSON.parse(localStorage.getItem('filters') || "[]");
+const config = JSON.parse(localStorage.getItem('config') || "{}");
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -44,11 +45,10 @@ function log(message) {
   console.log(`[${format.asString('dd/MM/yyyy hh:mm:ss.SSS', new Date())}] ${message}`);
 }
 
-async function Process() {
+async function processGroup(groupId: string) {
   const postsIndex = JSON.parse(localStorage.getItem('posts') || '{}');
   const instance = await phantom.create();
   const page = await instance.createPage();
-  const groupId = process.env.fb_group_id;
 
   log("reading facebook posts");
   await page.open('https://www.facebook.com/');
@@ -59,8 +59,8 @@ async function Process() {
       (document.getElementById('pass') as any).value = password;
       (document.getElementById('loginbutton') as any).firstChild.click();
     },
-    process.env.fb_user,
-    process.env.fb_pass);
+    config.fb_user,
+    config.fb_pass);
   await waitFor(page, function () { return document.title !== 'Facebook - Log In or Sign Up'; });
 
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
@@ -85,7 +85,7 @@ async function Process() {
           var showMore = post.getElementsByClassName('text_exposed_show')[0];
           var postId = /mall_post_(\d+):\d+:\d+/.exec(post.parentElement.parentElement.parentElement.parentElement.parentElement.id)[1];
           postsData.push({
-            id: postId,
+            id: groupId + ':' + postId,
             text: post.innerText + (showMore ? showMore.innerText : ''),
             link: 'https://www.facebook.com/groups/' + groupId + '/permalink/' + postId
           });
@@ -113,10 +113,10 @@ async function Process() {
       log(`no matching posts found`);
     } else {
       log(`found ${matches.length} new matching posts`);
-      var transporter = nodemailer.createTransport(`smtps://${process.env.gmail_user}%40gmail.com:${process.env.gmail_pass}@smtp.gmail.com`);
+      var transporter = nodemailer.createTransport(`smtps://${config.gmail_user}%40gmail.com:${config.gmail_pass}@smtp.gmail.com`);
       var mailOptions = {
-        from: `${process.env.gmail_user}@gmail.com`,
-        to: process.env.gmail_to_address,
+        from: `${config.gmail_user}@gmail.com`,
+        to: config.gmail_to_address,
         subject: 'New apartment matches',
         html: _.map(
           matches,
@@ -138,42 +138,35 @@ async function Process() {
   await instance.exit();
 }
 
-async function Run() {
+async function processGroupWithRetry(groupId: string) {
   let retry = 0;
-  while (true) {
+  while (retry++ < 3) {
     try {
-      log('Starting process')
-      await Process();
-      const waitInterval = Math.round(Math.random() * 20 + 40);
-      log(`Finished, waiting ${waitInterval}min for next process`);
-      await delay(1000 * 60 * waitInterval);
+      await processGroup(groupId);
+      return;
     } catch (error) {
-      retry++;
-      if (retry <= 3) {
-        log(`Failed: ${error}, retrying ${retry}...`);
-      } else {
-        retry = 0;
-        const waitInterval = Math.round(Math.random() * 20 + 40);
-        log(`Failed: ${error}, waiting ${waitInterval}min for next process`);
-        await delay(1000 * 60 * waitInterval);
-      }
+      log(`Failed: ${error}, retrying ${retry}...`);
+      await delay(5000);
     }
   }
 }
 
-function assert_env(envProperty) {
-  if (!process.env[envProperty]) {
-    throw `missing env variable '${envProperty}'.`;
+async function run() {
+  let retry = 0;
+  while (true) {
+    log('Starting process');
+
+    for (var index = 0; index < config.fb_group_ids.length; index++) {
+      log(`Processing group ${config.fb_group_ids[index]}`);
+      await processGroupWithRetry(config.fb_group_ids[index]);
+    }
+
+    const waitInterval = Math.round(Math.random() * 20 + 40);
+    log(`Finished, waiting ${waitInterval}min for next process`);
+    await delay(1000 * 60 * waitInterval);
   }
 }
 
-assert_env('fb_group_id');
-assert_env('fb_user');
-assert_env('fb_pass');
-assert_env('gmail_user');
-assert_env('gmail_pass');
-assert_env('gmail_to_address');
-
-Run().then(
+run().then(
   () => log('worker done'),
   reason => log(`worker failed:\n${reason}`));

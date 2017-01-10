@@ -20,6 +20,7 @@ async function waitFor(page, condition, timeout = 10000, ...args: any[]) {
   }
 
   if (timeout <= 0) {
+	localStorage.setItem('lastErrorPage', await page.property('content'));
     throw `Timeout expired evaluating ${condition}`
   }
 }
@@ -50,8 +51,10 @@ async function processGroup(groupId: string) {
   const instance = await phantom.create();
   const page = await instance.createPage();
 
+  await page.setting('userAgent', 'User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36');
+
   log("reading facebook posts");
-  await page.open('https://www.facebook.com/');
+  await page.open('https://en-us.facebook.com/');
 
   await page.evaluate(
     function (user, password) {
@@ -61,7 +64,7 @@ async function processGroup(groupId: string) {
     },
     config.fb_user,
     config.fb_pass);
-  await waitFor(page, function () { return document.title !== 'Facebook - Log In or Sign Up'; });
+  await waitFor(page, function () { return document.getElementById('topnews_main_stream_408239535924329') !== null; });
 
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
   await waitFor(

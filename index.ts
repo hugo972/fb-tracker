@@ -20,7 +20,7 @@ async function waitFor(page, condition, timeout = 10000, ...args: any[]) {
   }
 
   if (timeout <= 0) {
-	localStorage.setItem('lastErrorPage', await page.property('content'));
+    localStorage.setItem('lastErrorPage', await page.property('content'));
     throw `Timeout expired evaluating ${condition}`
   }
 }

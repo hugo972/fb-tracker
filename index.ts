@@ -27,19 +27,37 @@ async function waitFor(page, condition, timeout = 10000, ...args: any[]) {
 
 function testPost(post, filters) {
   let text = post.text.replace(/\s+/g, ' ');
-  return _.all(
-    filters,
+  if (!_.all(
+    filters.termRules,
     filter => {
       const termIndex = text.indexOf(filter.term);
       return termIndex !== -1 &&
-        _.all(
+        !_.any(
           filter.pre,
-          pre => text.lastIndexOf(pre, termIndex) + pre.length + 5 < termIndex) &&
-        _.all(
+          pre => 
+            text.lastIndexOf(pre, termIndex) !== -1 &&
+            text.lastIndexOf(pre, termIndex) + pre.length + 5 > termIndex) &&
+        !_.any(
           filter.post,
-          post => text.indexOf(post, termIndex) > termIndex + filter.term.length + 5);
+          post =>
+            text.indexOf(post, termIndex) !== -1 &&
+            termIndex + filter.term.length + 5 > text.indexOf(post, termIndex));
     }
-  )
+  )) {
+    return false;
+  }
+
+  const numbers =
+    _.map(
+      text.match(/[\d,]+/g),
+      number => parseInt(number.replace(',', '')));
+  if (!_.any(
+    numbers,
+    number => number >= filters.priceRange.low && number <= filters.priceRange.high)) {
+    return false;
+  }
+
+  return true;
 }
 
 function log(message) {
@@ -123,7 +141,8 @@ async function processGroup(groupId: string) {
         subject: 'New apartment matches',
         html: _.map(
           matches,
-          match => `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div>` +
+          match => 
+            `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div>` +
             `<div style="font-size: 12px;">${match.link}</div></div>`).join("")
       };
       transporter.sendMail(mailOptions);

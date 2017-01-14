@@ -3,10 +3,13 @@ const LocalStorage = require('node-localstorage').LocalStorage;
 const _ = require('underscore-node');
 const nodemailer = require('nodemailer');
 const format = require('date-format');
+const GitHubApi = require("github");
+const childProcess = require('child_process')
 
 localStorage = new LocalStorage('./data');
 const filters = JSON.parse(localStorage.getItem('filters') || "[]");
 const config = JSON.parse(localStorage.getItem('config') || "{}");
+const github = new GitHubApi();
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -34,7 +37,7 @@ function testPost(post, filters) {
       return termIndex !== -1 &&
         !_.any(
           filter.pre,
-          pre => 
+          pre =>
             text.lastIndexOf(pre, termIndex) !== -1 &&
             text.lastIndexOf(pre, termIndex) + pre.length + 5 > termIndex) &&
         !_.any(
@@ -141,7 +144,7 @@ async function processGroup(groupId: string) {
         subject: 'New apartment matches',
         html: _.map(
           matches,
-          match => 
+          match =>
             `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div>` +
             `<div style="font-size: 12px;">${match.link}</div></div>`).join("")
       };
@@ -176,9 +179,27 @@ async function processGroupWithRetry(groupId: string) {
   }
 }
 
+async function checkUpdates() {
+  const commits = await github.repos.getCommits(
+    {
+      "owner": "hugo972",
+      "repo": "fb-tracker"
+    });
+
+  if (commits.length > 0 && config.sha !== commits[0].sha) {
+    log(`Applying update "${commits[0].commit.message}"...`);
+    config.sha = commits[0].sha;
+    localStorage.setItem('config', JSON.stringify(config, null, "  "));
+    childProcess.execSync('git pull;tsc');
+  }
+}
+
 async function run() {
   let retry = 0;
   while (true) {
+    log('Checking for updates');
+    await checkUpdates();
+
     log('Starting process');
 
     for (var index = 0; index < config.fb_group_ids.length; index++) {

@@ -190,7 +190,7 @@ async function checkUpdates() {
     log(`Applying update "${commits[0].commit.message}"...`);
     config.sha = commits[0].sha;
     localStorage.setItem('config', JSON.stringify(config, null, "  "));
-    childProcess.execSync('git pull;tsc');
+    childProcess.execSync('git pull;npm install');
   }
 }
 

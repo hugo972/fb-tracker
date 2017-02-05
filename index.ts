@@ -205,7 +205,7 @@ async function run() {
   let retry = 0;
   while (true) {
     log('Checking for updates');
-    await checkUpdates();
+    //await checkUpdates();
 
     log('Starting process');
 

@@ -4,11 +4,11 @@ const _ = require('underscore-node');
 const nodemailer = require('nodemailer');
 const format = require('date-format');
 const GitHubApi = require("github");
-const childProcess = require('child_process')
+const childProcess = require('child_process');
+const mongodb = require('mongodb');
 
-localStorage = new LocalStorage('./data');
-const filters = JSON.parse(localStorage.getItem('filters') || "[]");
-const config = JSON.parse(localStorage.getItem('config') || "{}");
+const dataStorage = new LocalStorage('./data');
+const secrets = JSON.parse(dataStorage.getItem('secrets') || "{}");
 const github = new GitHubApi();
 
 function delay(ms: number) {
@@ -23,7 +23,7 @@ async function waitFor(page, condition, timeout = 10000, ...args: any[]) {
   }
 
   if (timeout <= 0) {
-    localStorage.setItem('lastErrorPage', await page.property('content'));
+    dataStorage.setItem('lastErrorPage', await page.property('content'));
     throw `Timeout expired evaluating ${condition}`
   }
 }
@@ -67,10 +67,16 @@ function log(message) {
   console.log(`[${format.asString('dd/MM/yyyy hh:mm:ss.SSS', new Date())}] ${message}`);
 }
 
-async function processGroup(groupId: string) {
-  const postsIndex = JSON.parse(localStorage.getItem('posts') || '{}');
+async function processGroup(db: any, groupId: string) {
+  const system = await db.collection('system').findOne();
+  const filters = await db.collection('filters').findOne();
+  const postsIndex = {};
   const instance = await phantom.create();
   const page = await instance.createPage();
+
+  _.each(
+    await db.collection('posts').find().toArray(),
+    post => postsIndex[post.id] = post);
 
   await page.setting('userAgent', 'User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36');
 
@@ -83,8 +89,8 @@ async function processGroup(groupId: string) {
       (document.getElementById('pass') as any).value = password;
       (document.getElementById('loginbutton') as any).firstChild.click();
     },
-    config.fb_user,
-    config.fb_pass);
+    secrets.fb_user,
+    secrets.fb_pass);
   await waitFor(page, function () { return document.getElementById('topnews_main_stream_408239535924329') !== null; });
 
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
@@ -137,10 +143,10 @@ async function processGroup(groupId: string) {
       log(`no matching posts found`);
     } else {
       log(`found ${matches.length} new matching posts`);
-      var transporter = nodemailer.createTransport(`smtps://${config.gmail_user}%40gmail.com:${config.gmail_pass}@smtp.gmail.com`);
+      var transporter = nodemailer.createTransport(`smtps://${secrets.gmail_user}%40gmail.com:${secrets.gmail_pass}@smtp.gmail.com`);
       var mailOptions = {
-        from: `${config.gmail_user}@gmail.com`,
-        to: config.gmail_to_address,
+        from: `${secrets.gmail_user}@gmail.com`,
+        to: system.notification_email_address,
         subject: 'New apartment matches',
         html: _.map(
           matches,
@@ -150,27 +156,26 @@ async function processGroup(groupId: string) {
       };
       transporter.sendMail(mailOptions);
 
-      let currentMatches = JSON.parse(localStorage.getItem('matches') || "[]");
-      matches.concat(currentMatches);
-      localStorage.setItem('matches', JSON.stringify(matches, null, "  "));
+      db.collection('matches').insertMany(matches);
     }
   }
 
-  _.each(
-    newPosts,
-    post => postsIndex[post.id] = { match: false, time: new Date() });
-  _.each(
-    matches,
-    match => postsIndex[match.id].match = true);
-  localStorage.setItem('posts', JSON.stringify(postsIndex, null, "  "));
+  db.collection('posts').insertMany(
+    _.map(
+      newPosts,
+      post => ({
+        id: post.id,
+        match: _.contains(matches, match => match.id === post.id),
+        time: new Date()
+      })));
   await instance.exit();
 }
 
-async function processGroupWithRetry(groupId: string) {
+async function processGroupWithRetry(db: any, groupId: string) {
   let retry = 0;
   while (retry++ < 3) {
     try {
-      await processGroup(groupId);
+      await processGroup(db, groupId);
       return;
     } catch (error) {
       log(`Failed: ${error}, retrying ${retry}...`);
@@ -186,15 +191,17 @@ async function checkUpdates() {
       "repo": "fb-tracker"
     });
 
-  if (commits.length > 0 && config.sha !== commits[0].sha) {
+  if (commits.length > 0 && secrets.sha !== commits[0].sha) {
     log(`Applying update "${commits[0].commit.message}"...`);
-    config.sha = commits[0].sha;
-    localStorage.setItem('config', JSON.stringify(config, null, "  "));
+    secrets.sha = commits[0].sha;
+    dataStorage.setItem('secrets', JSON.stringify(secrets, null, "  "));
     childProcess.execSync('git pull;npm install');
   }
 }
 
 async function run() {
+  const db = await mongodb.MongoClient.connect(`mongodb://${secrets.db_user}:${secrets.db_pass}@ds135039.mlab.com:35039/fbtracker`);
+  const system = await db.collection('system').findOne();
   let retry = 0;
   while (true) {
     log('Checking for updates');
@@ -202,9 +209,9 @@ async function run() {
 
     log('Starting process');
 
-    for (var index = 0; index < config.fb_group_ids.length; index++) {
-      log(`Processing group ${config.fb_group_ids[index]}`);
-      await processGroupWithRetry(config.fb_group_ids[index]);
+    for (var index = 0; index < system.facebook_group_ids.length; index++) {
+      log(`Processing group ${system.facebook_group_ids[index]}`);
+      await processGroupWithRetry(db, system.facebook_group_ids[index]);
     }
 
     const waitInterval = Math.round(Math.random() * 20 + 40);

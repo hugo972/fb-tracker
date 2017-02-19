@@ -83,11 +83,17 @@ async function processGroup(db: any, groupId: string) {
   log("reading facebook posts");
   await page.open('https://en-us.facebook.com/');
 
+  log(await page.evaluate(function () {
+	  return (document.querySelector('[type="submit"][value="Log In"]') as any).value;
+  }));
+  
   await page.evaluate(
     function (user, password) {
       (document.getElementById('email') as any).value = user;
       (document.getElementById('pass') as any).value = password;
-      (document.getElementById('loginbutton') as any).firstChild.click();
+      (document.querySelector('[type="submit"][value="Log In"]') as any).show();
+      (document.querySelector('[type="submit"][value="Log In"]') as any).focus();
+      (document.querySelector('[type="submit"][value="Log In"]') as any).click();
     },
     secrets.fb_user,
     secrets.fb_pass);

@@ -78,21 +78,15 @@ async function processGroup(db: any, groupId: string) {
     await db.collection('posts').find().toArray(),
     post => postsIndex[post.id] = post);
 
-  await page.setting('userAgent', 'User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36');
+  //await page.setting('userAgent', 'User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36');
 
   log("reading facebook posts");
   await page.open('https://en-us.facebook.com/');
-
-  log(await page.evaluate(function () {
-	  return (document.querySelector('[type="submit"][value="Log In"]') as any).value;
-  }));
   
   await page.evaluate(
     function (user, password) {
       (document.getElementById('email') as any).value = user;
       (document.getElementById('pass') as any).value = password;
-      (document.querySelector('[type="submit"][value="Log In"]') as any).show();
-      (document.querySelector('[type="submit"][value="Log In"]') as any).focus();
       (document.querySelector('[type="submit"][value="Log In"]') as any).click();
     },
     secrets.fb_user,

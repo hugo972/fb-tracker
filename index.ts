@@ -87,7 +87,7 @@ async function processGroup(db: any, groupId: string) {
     function (user, password) {
       (document.getElementById('email') as any).value = user;
       (document.getElementById('pass') as any).value = password;
-      (document.querySelector('[type="submit"][value="Log In"]') as any).click();
+      (document.getElementById('u_0_s') as any).click();
     },
     secrets.fb_user,
     secrets.fb_pass);

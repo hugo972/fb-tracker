@@ -165,7 +165,7 @@ async function processGroup(db: any, groupId: string) {
       newPosts,
       post => ({
         id: post.id,
-        match: _.find(matches, match => match.id === post.id),
+        match: !!_.find(matches, match => match.id === post.id),
         time: new Date()
       })));
   await instance.exit();

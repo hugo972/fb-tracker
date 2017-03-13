@@ -1,11 +1,11 @@
-const phantom = require('phantom');
-const LocalStorage = require('node-localstorage').LocalStorage;
 const _ = require('underscore-node');
-const nodemailer = require('nodemailer');
-const format = require('date-format');
-const GitHubApi = require("github");
 const childProcess = require('child_process');
+const GitHubApi = require("github");
+const LocalStorage = require('node-localstorage').LocalStorage;
+const moment = require('moment');
 const mongodb = require('mongodb');
+const nodemailer = require('nodemailer');
+const phantom = require('phantom');
 
 const dataStorage = new LocalStorage('./data');
 const secrets = JSON.parse(dataStorage.getItem('secrets') || "{}");
@@ -64,7 +64,7 @@ function testPost(post, filters) {
 }
 
 function log(message) {
-  console.log(`[${format.asString('dd/MM/yyyy hh:mm:ss.SSS', new Date())}] ${message}`);
+  console.log(`[${moment().format('L LT')}] ${message}`);
 }
 
 async function processGroup(db: any, groupId: string) {

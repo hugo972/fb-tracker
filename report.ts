@@ -1,7 +1,7 @@
 module report {
-    const LocalStorage = require('node-localstorage').LocalStorage;
     const _ = require('underscore-node');
-    const format = require('date-format');
+    const LocalStorage = require('node-localstorage').LocalStorage;
+    const moment = require('moment');
     const mongodb = require('mongodb');
 
     const dataStorage = new LocalStorage('./data');
@@ -34,9 +34,9 @@ module report {
                             ? postTime
                             : new Date(Math.max(postTime.getTime(), report.lastPostTime.getTime()));
                     });
-                console.log(`Report time: ${format.asString('dd/MM/yyyy hh:mm:ss.SSS', new Date())}`);
-                console.log(`Last post time: ${format.asString('dd/MM/yyyy hh:mm:ss.SSS', report.lastPostTime)}`);
-                console.log(`Last match time: ${format.asString('dd/MM/yyyy hh:mm:ss.SSS', report.lastMatchTime)}`);
+                console.log(`Report time: ${moment().format('L LT')}`);
+                console.log(`Last post time: ${moment(report.lastPostTime).format('L LT')} (${moment(report.lastPostTime).fromNow()})`);
+                console.log(`Last match time: ${moment(report.lastMatchTime).format('L LT')} (${moment(report.lastMatchTime).fromNow()})`);
             });
         db.close();
     }

@@ -1,9 +1,10 @@
-node_modules/
 .vscode/
 data/
-typings/
+node_modules/
 secrets/
+typings/
 
+**/.DS_Store
 **/*.js
 **/*.js.map
 **/*.log

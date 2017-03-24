@@ -19,7 +19,8 @@
     "nodemailer": "^2.7.0",
     "nodemon": "^1.11.0",
     "phantom": "^2.1.21",
-    "typescript": "^2.1.4",
+    "string-similarity": "^1.1.0",
+    "typescript": "^2.1.5",
     "underscore-node": "^0.1.2"
   }
 }

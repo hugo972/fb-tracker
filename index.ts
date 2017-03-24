@@ -6,6 +6,7 @@ const moment = require('moment');
 const mongodb = require('mongodb');
 const nodemailer = require('nodemailer');
 const phantom = require('phantom');
+const stringSimilarity = require('string-similarity');
 
 const dataStorage = new LocalStorage('./data');
 const secrets = JSON.parse(dataStorage.getItem('secrets') || "{}");
@@ -82,7 +83,7 @@ async function processGroup(db: any, groupId: string) {
 
   log("reading facebook posts");
   await page.open('https://en-us.facebook.com/');
-  
+
   await page.evaluate(
     function (user, password) {
       (document.querySelector('[name="email"]') as any).value = user;
@@ -142,21 +143,43 @@ async function processGroup(db: any, groupId: string) {
     if (matches.length === 0) {
       log(`no matching posts found`);
     } else {
-      log(`found ${matches.length} new matching posts`);
-      var transporter = nodemailer.createTransport(`smtps://${secrets.gmail_user}%40gmail.com:${secrets.gmail_pass}@smtp.gmail.com`);
-      var mailOptions = {
-        from: `${secrets.gmail_user}@gmail.com`,
-        to: system.notification_email_address,
-        subject: 'New apartment matches',
-        html: _.map(
-          matches,
-          match =>
-            `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div>` +
-            `<div style="font-size: 12px;">${match.link}</div></div>`).join("")
-      };
-      transporter.sendMail(mailOptions);
+      log(`processing ${matches.length} matching posts`);
+      const currentMatches = await db.collection('matches').find().toArray();
+      const uniqueMatches = [];
+      _.each(
+        matches,
+        async match => {
+          if (_.any(
+            uniqueMatches,
+            uniqueMatch => stringSimilarity.compareTwoStrings(match.text, uniqueMatch.text) > 0.75)) {
+            return;
+          }
+          if (_.any(
+            currentMatches,
+            currentMatch => stringSimilarity.compareTwoStrings(match.text, currentMatch.text) > 0.75)) {
+            return;
+          }
+          uniqueMatches.push(match);
+        });
 
-      db.collection('matches').insertMany(matches);
+      if (uniqueMatches.length > 0) {
+        log(`found ${uniqueMatches.length} new matching posts`);
+
+        var transporter = nodemailer.createTransport(`smtps://${secrets.gmail_user}%40gmail.com:${secrets.gmail_pass}@smtp.gmail.com`);
+        var mailOptions = {
+          from: `${secrets.gmail_user}@gmail.com`,
+          to: system.notification_email_address,
+          subject: 'New apartment matches',
+          html: _.map(
+            uniqueMatches,
+            match =>
+              `<div style="margin-top: 20px;"><div style="font-size: 14px;">${match.text}</div>` +
+              `<div style="font-size: 12px;">${match.link}</div></div>`).join("")
+        };
+        transporter.sendMail(mailOptions);
+
+        db.collection('matches').insertMany(uniqueMatches);
+      }
     }
   }
 

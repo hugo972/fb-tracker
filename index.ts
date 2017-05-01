@@ -24,6 +24,7 @@ async function waitFor(page, condition, timeout = 10000, ...args: any[]) {
   }
 
   if (timeout <= 0) {
+    await page.render('./data/lastErrorPage.png');
     dataStorage.setItem('lastErrorPage', await page.property('content'));
     throw `Timeout expired evaluating ${condition}`
   }
@@ -79,7 +80,7 @@ async function processGroup(db: any, groupId: string) {
     await db.collection('posts').find().toArray(),
     post => postsIndex[post.id] = post);
 
-  await page.setting('userAgent', 'User-Agent: Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)');
+  await page.setting('userAgent', 'User-Agent: Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0)');
 
   log("reading facebook posts");
   await page.open('https://en-us.facebook.com/');
@@ -88,11 +89,11 @@ async function processGroup(db: any, groupId: string) {
     function (user, password) {
       (document.querySelector('[name="email"]') as any).value = user;
       (document.querySelector('[name="pass"]') as any).value = password;
-      (document.querySelector('[name="login"], #u_0_s') as any).click();
+      (document.querySelector('[name="login"], #u_0_s, #u_0_q') as any).click();
     },
     secrets.fb_user,
     secrets.fb_pass);
-  await waitFor(page, function () { return document.getElementById('topnews_main_stream_408239535924329') !== null; });
+  await waitFor(page, function () { return document.getElementById('m_newsfeed_stream') !== null; });
 
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
   await waitFor(

@@ -70,6 +70,7 @@ function log(message) {
 }
 
 async function processGroup(db: any, groupId: string) {
+  log("loading configuration");
   const system = await db.collection('system').findOne();
   const filters = await db.collection('filters').findOne();
   const postsIndex = {};
@@ -84,7 +85,6 @@ async function processGroup(db: any, groupId: string) {
 
   log("reading facebook posts");
   await page.open('https://en-us.facebook.com/');
-
   await page.evaluate(
     function (user, password) {
       (document.querySelector('[name="email"]') as any).value = user;
@@ -93,7 +93,10 @@ async function processGroup(db: any, groupId: string) {
     },
     secrets.fb_user,
     secrets.fb_pass);
-  await waitFor(page, function () { return document.getElementById('m_newsfeed_stream') !== null; });
+  await waitFor(page, function () { 
+    return document.getElementById('m_newsfeed_stream') !== null || 
+      document.querySelector('a[href="/login/save-device/cancel/"]') !== null; 
+  });
 
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
   await waitFor(

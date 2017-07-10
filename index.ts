@@ -70,7 +70,7 @@ function log(message) {
 }
 
 async function processGroup(db: any, groupId: string) {
-  log("loading configuration");
+  log("loading configurations");
   const system = await db.collection('system').findOne();
   const filters = await db.collection('filters').findOne();
   const postsIndex = {};
@@ -81,47 +81,44 @@ async function processGroup(db: any, groupId: string) {
     await db.collection('posts').find().toArray(),
     post => postsIndex[post.id] = post);
 
-  await page.setting('userAgent', 'User-Agent: Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0)');
+  await page.setting('userAgent', 'User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 8_0_2 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Version/8.0 Mobile/12A366 Safari/600.1.4');
 
-  log("reading facebook posts");
-  await page.open('https://en-us.facebook.com/');
+  log("login to facebook");
+  await page.open('https://en-us.facebook.com/home.php');
+  await waitFor(page, function () { 
+      return document.querySelector('[name="email"]') != null &&
+        document.querySelector('[name="pass"]') != null &&
+        document.querySelector('[name="login"]') != null
+  });
   await page.evaluate(
     function (user, password) {
       (document.querySelector('[name="email"]') as any).value = user;
       (document.querySelector('[name="pass"]') as any).value = password;
-      (document.querySelector('[name="login"], #u_0_s, #u_0_q') as any).click();
+      (document.querySelector('[name="login"]') as any).click();
     },
     secrets.fb_user,
     secrets.fb_pass);
-  await waitFor(page, function () { 
-    return document.getElementById('m_newsfeed_stream') !== null || 
-      document.querySelector('a[href="/login/save-device/cancel/"]') !== null; 
-  });
+  await waitFor(page, function () { return document.getElementById('topnews_main_stream_408239535924329') !== null; });
 
+  log("reading facebook posts");
   await page.open(`https://www.facebook.com/groups/${groupId}/`);
-  await waitFor(
-    page,
-    function (groupId) { return document.getElementById('group_mall_' + groupId) !== null; },
-    10000,
-    groupId);
-
-  await page.evaluate(function () {
-    document.body.scrollTop = 50000;
-  });
+  await waitFor(page, function () { return document.getElementById('m_group_stories_container') !== null; }, 10000);
+  await page.evaluate(function () { document.body.scrollTop = 50000; });
   await delay(1000);
 
   const posts = await page.evaluate(
     function (groupId) {
-      var posts = document.getElementById('group_mall_' + groupId).getElementsByClassName('userContent');
+      var posts = document.querySelectorAll('[data-sigil="story-div story-popup-metadata  story-popup-metadata feed-ufi-metadata"]');
       var postsData = [];
       for (var index = 0; index < posts.length; index++) {
         try {
           var post: any = posts[index];
-          var showMore = post.getElementsByClassName('text_exposed_show')[0];
-          var postId = /mall_post_(\d+):\d+:\d+/.exec(post.parentElement.parentElement.parentElement.parentElement.parentElement.id)[1];
+          var postText = post.querySelector('[data-sigil="expose"]');
+          var showMore = post.querySelector('.text_exposed_show');
+          var postId = /mf_story_key\.(\d+)/.exec(post.attributes["data-store"].value)[1];
           postsData.push({
             id: groupId + ':' + postId,
-            text: post.innerText + (showMore ? showMore.innerText : ''),
+            text: postText.innerText + (showMore ? showMore.innerText : ''),
             link: 'https://www.facebook.com/groups/' + groupId + '/permalink/' + postId
           });
         } catch (error) {

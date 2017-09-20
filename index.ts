@@ -85,10 +85,10 @@ async function processGroup(db: any, groupId: string) {
 
   log("login to facebook");
   await page.open('https://en-us.facebook.com/home.php');
-  await waitFor(page, function () { 
-      return document.querySelector('[name="email"]') != null &&
-        document.querySelector('[name="pass"]') != null &&
-        document.querySelector('[name="login"]') != null
+  await waitFor(page, function () {
+    return document.querySelector('[name="email"]') != null &&
+      document.querySelector('[name="pass"]') != null &&
+      document.querySelector('[name="login"]') != null
   });
   await page.evaluate(
     function (user, password) {
@@ -114,11 +114,15 @@ async function processGroup(db: any, groupId: string) {
         try {
           var post: any = posts[index];
           var postText = post.querySelector('[data-sigil="expose"]');
-          var showMore = post.querySelector('.text_exposed_show');
+          var exposeElements = post.querySelectorAll('.text_exposed_show');
+          var showMoreText = '';
+          for (var exposeIndex = 0; exposeIndex < exposeElements.length; exposeIndex++) {
+            showMoreText += exposeElements[exposeIndex].innerText;
+          }
           var postId = /mf_story_key\.(\d+)/.exec(post.attributes["data-store"].value)[1];
           postsData.push({
             id: groupId + ':' + postId,
-            text: postText.innerText + (showMore ? showMore.innerText : ''),
+            text: postText.innerText + showMoreText,
             link: 'https://www.facebook.com/groups/' + groupId + '/permalink/' + postId
           });
         } catch (error) {

@@ -98,7 +98,7 @@ async function processGroup(db: any, groupId: string) {
     },
     secrets.fb_user,
     secrets.fb_pass);
-  await waitFor(page, function () { return document.getElementById('topnews_main_stream_408239535924329') !== null; });
+  await waitFor(page, function () { return document.getElementById('m_newsfeed_stream') !== null; });
 
   log("reading facebook posts");
   await page.open(`https://www.facebook.com/groups/${groupId}/`);

@@ -228,7 +228,7 @@ async function checkUpdates() {
 }
 
 async function run() {
-  const db = await mongodb.MongoClient.connect(`mongodb://${secrets.db_user}:${secrets.db_pass}@ds135039.mlab.com:35039/${secrets.db_name}`);
+  const db = await mongodb.MongoClient.connect(`mongodb://${secrets.db_user}:${secrets.db_pass}@${secrets.db_url}`);
   const system = await db.collection('system').findOne();
   let retry = 0;
   while (true) {
